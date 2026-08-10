@@ -826,16 +826,29 @@ function ReceiptPrint({ data }) {
   const dataHora = now.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 
   if (data.type === "ticket") {
+    const c = data.comanda;
+    const total = c.items.reduce((s, it) => s + it.price * it.qty, 0);
     return (
       <div className="pdv-receipt-print">
         <div style={{ textAlign: "center", fontWeight: 700, fontSize: "14px" }}>DHOMINI CAFÉ</div>
         <div style={{ textAlign: "center", fontSize: "10px", marginBottom: "6px" }}>{dataHora}</div>
         <div style={{ borderTop: "1px dashed #000", margin: "4px 0" }} />
         <div style={{ textAlign: "center", fontSize: "11px", marginTop: "6px" }}>SENHA</div>
-        <div style={{ textAlign: "center", fontWeight: 700, fontSize: "42px", lineHeight: 1 }}>#{data.comanda.ticketNumber}</div>
-        {data.comanda.clientName && (
-          <div style={{ textAlign: "center", fontSize: "11px", marginTop: "4px" }}>{data.comanda.clientName}</div>
+        <div style={{ textAlign: "center", fontWeight: 700, fontSize: "42px", lineHeight: 1 }}>#{c.ticketNumber}</div>
+        {c.clientName && (
+          <div style={{ textAlign: "center", fontSize: "11px", marginTop: "4px" }}>{c.clientName}</div>
         )}
+        <div style={{ borderTop: "1px dashed #000", margin: "8px 0 4px" }} />
+        {c.items.map((it, i) => (
+          <div key={i} style={{ fontSize: "11px", display: "flex", justifyContent: "space-between" }}>
+            <span>{it.qty}x {it.name}</span>
+            <span>{fmtBRL(it.price * it.qty)}</span>
+          </div>
+        ))}
+        <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />
+        <div style={{ fontSize: "13px", fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
+          <span>TOTAL</span><span>{fmtBRL(total)}</span>
+        </div>
         <div style={{ borderTop: "1px dashed #000", margin: "8px 0 4px" }} />
         <div style={{ textAlign: "center", fontSize: "10px" }}>Guarde este número para pagar</div>
       </div>
