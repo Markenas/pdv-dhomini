@@ -60,6 +60,15 @@ export default function PDVCafeteria() {
   const [funcionarios, setFuncionarios] = useState([]);
   const [currentEmployee, setCurrentEmployee] = useState(null);
   const [caixaFiltro, setCaixaFiltro] = useState("hoje");
+  const [printData, setPrintData] = useState(null);
+
+  useEffect(() => {
+    if (!printData) return;
+    const t = setTimeout(() => window.print(), 80);
+    const onAfter = () => setPrintData(null);
+    window.addEventListener("afterprint", onAfter);
+    return () => { clearTimeout(t); window.removeEventListener("afterprint", onAfter); };
+  }, [printData]);
 
   useEffect(() => {
     (async () => {
@@ -136,7 +145,20 @@ export default function PDVCafeteria() {
         .pdv-scroll::-webkit-scrollbar { width: 6px; }
         .pdv-scroll::-webkit-scrollbar-thumb { background: #4A3B2A; border-radius: 4px; }
         @keyframes pdvFloatUp { 0% { opacity: 0; transform: translateY(4px) scale(0.8); } 30% { opacity: 1; transform: translateY(-2px) scale(1.1); } 100% { opacity: 0; transform: translateY(-16px) scale(1); } }
+        .pdv-receipt-print { display: none; }
+        @media print {
+          @page { size: 80mm auto; margin: 0; }
+          body * { visibility: hidden; }
+          .pdv-receipt-print, .pdv-receipt-print * { visibility: visible; }
+          .pdv-receipt-print {
+            display: block !important;
+            position: absolute; top: 0; left: 0; width: 76mm;
+            padding: 4mm; font-family: 'IBM Plex Mono', monospace; color: #000; background: #fff;
+          }
+        }
       `}</style>
+
+      <ReceiptPrint data={printData} />
 
       <header className="px-4 sm:px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: "#4A3B2A" }}>
         <div className="flex items-center gap-2">
@@ -190,6 +212,7 @@ export default function PDVCafeteria() {
             comandas={comandas}
             setComandas={persistComandas}
             currentEmployee={currentEmployee}
+            onPrint={setPrintData}
           />
         )}
         {tab === "produtos" && <ProdutosTab produtos={produtos} setProdutos={persistProdutos} />}
@@ -292,7 +315,7 @@ function LoginScreen({ funcionarios, setFuncionarios, onLogin }) {
 
 /* ---------------- COMANDAS ---------------- */
 
-function ComandasTab({ produtos, comandas, setComandas, currentEmployee }) {
+function ComandasTab({ produtos, comandas, setComandas, currentEmployee, onPrint }) {
   const [mode, setMode] = useState("lista"); // lista | nova | editar | pagar
   const [activeId, setActiveId] = useState(null);
   const [cart, setCart] = useState([]);
@@ -370,6 +393,7 @@ function ComandasTab({ produtos, comandas, setComandas, currentEmployee }) {
     };
     setComandas([comanda, ...comandas]);
     setMode("lista");
+    onPrint({ type: "ticket", comanda, timestamp: comanda.openedAt });
   };
 
   const salvarEdicao = () => {
@@ -383,13 +407,16 @@ function ComandasTab({ produtos, comandas, setComandas, currentEmployee }) {
     if (!comanda) return;
     const total = comanda.items.reduce((s, it) => s + it.price * it.qty, 0);
     const totalCost = comanda.items.reduce((s, it) => s + it.cost * it.qty, 0);
-    setComandas(comandas.map((c) => c.id === activeId ? {
-      ...c, status: "paga", closedBy: currentEmployee.name, closedAt: new Date().toISOString(),
+    const closedAt = new Date().toISOString();
+    const comandaFechada = {
+      ...comanda, status: "paga", closedBy: currentEmployee.name, closedAt,
       paymentMethod: payMethod, total, totalCost, profit: total - totalCost,
-    } : c));
+    };
+    setComandas(comandas.map((c) => c.id === activeId ? comandaFechada : c));
     setMode("lista");
     setPayMethod("Dinheiro");
     setBuscaTicket("");
+    onPrint({ type: "comprovante", comanda: comandaFechada, timestamp: closedAt });
   };
 
   const cancelarComanda = (id) => {
@@ -551,6 +578,7 @@ function ComandasTab({ produtos, comandas, setComandas, currentEmployee }) {
               <div className="pdv-mono text-lg mt-1" style={{ color: "#F2E9DA" }}>{fmtBRL(total)}</div>
               <div className="flex gap-2 mt-3">
                 <button onClick={() => startEditar(c)} className="flex-1 py-1.5 rounded text-xs" style={{ background: "#3A2A1F", color: "#C9B79C" }}>+ Itens</button>
+                <button onClick={() => onPrint({ type: "ticket", comanda: c, timestamp: c.openedAt })} className="py-1.5 px-2 rounded text-xs" style={{ background: "#3A2A1F", color: "#C9B79C" }} title="Reimprimir senha">🖨</button>
                 <button onClick={() => startPagar(c)} className="flex-1 py-1.5 rounded text-xs font-semibold" style={{ background: "#7C8A5C", color: "#1D2314" }}>Pagar</button>
               </div>
             </div>
@@ -781,7 +809,54 @@ function CaixaTab({ vendas, filtro, setFiltro, setComandas, comandas }) {
 
 /* ---------------- SHARED UI ---------------- */
 
-function Field({ label, value, onChange, numeric }) {
+function ReceiptPrint({ data }) {
+  if (!data) return <div className="pdv-receipt-print" />;
+  const now = new Date(data.timestamp || Date.now());
+  const dataHora = now.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+  if (data.type === "ticket") {
+    return (
+      <div className="pdv-receipt-print">
+        <div style={{ textAlign: "center", fontWeight: 700, fontSize: "14px" }}>DHOMINI CAFÉ</div>
+        <div style={{ textAlign: "center", fontSize: "10px", marginBottom: "6px" }}>{dataHora}</div>
+        <div style={{ borderTop: "1px dashed #000", margin: "4px 0" }} />
+        <div style={{ textAlign: "center", fontSize: "11px", marginTop: "6px" }}>SENHA</div>
+        <div style={{ textAlign: "center", fontWeight: 700, fontSize: "42px", lineHeight: 1 }}>#{data.comanda.ticketNumber}</div>
+        {data.comanda.clientName && (
+          <div style={{ textAlign: "center", fontSize: "11px", marginTop: "4px" }}>{data.comanda.clientName}</div>
+        )}
+        <div style={{ borderTop: "1px dashed #000", margin: "8px 0 4px" }} />
+        <div style={{ textAlign: "center", fontSize: "10px" }}>Guarde este número para pagar</div>
+      </div>
+    );
+  }
+
+  // type === "comprovante"
+  const c = data.comanda;
+  const total = c.items.reduce((s, it) => s + it.price * it.qty, 0);
+  return (
+    <div className="pdv-receipt-print">
+      <div style={{ textAlign: "center", fontWeight: 700, fontSize: "14px" }}>DHOMINI CAFÉ</div>
+      <div style={{ textAlign: "center", fontSize: "10px", marginBottom: "6px" }}>{dataHora}</div>
+      <div style={{ borderTop: "1px dashed #000", margin: "4px 0" }} />
+      <div style={{ fontSize: "11px" }}>Comanda #{c.ticketNumber} {c.clientName ? `· ${c.clientName}` : ""}</div>
+      <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />
+      {c.items.map((it, i) => (
+        <div key={i} style={{ fontSize: "11px", display: "flex", justifyContent: "space-between" }}>
+          <span>{it.qty}x {it.name}</span>
+          <span>{fmtBRL(it.price * it.qty)}</span>
+        </div>
+      ))}
+      <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />
+      <div style={{ fontSize: "13px", fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
+        <span>TOTAL</span><span>{fmtBRL(total)}</span>
+      </div>
+      <div style={{ fontSize: "10px", marginTop: "2px" }}>Pagamento: {c.paymentMethod || "-"}</div>
+      <div style={{ borderTop: "1px dashed #000", margin: "8px 0 4px" }} />
+      <div style={{ textAlign: "center", fontSize: "10px" }}>Obrigado, volte sempre!</div>
+    </div>
+  );
+}
   return (
     <label className="text-xs" style={{ color: "#C9B79C" }}>
       {label}
