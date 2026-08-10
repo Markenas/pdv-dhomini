@@ -393,7 +393,6 @@ function ComandasTab({ produtos, comandas, setComandas, currentEmployee, onPrint
     };
     setComandas([comanda, ...comandas]);
     setMode("lista");
-    onPrint({ type: "ticket", comanda, timestamp: comanda.openedAt });
   };
 
   const salvarEdicao = () => {
@@ -416,7 +415,6 @@ function ComandasTab({ produtos, comandas, setComandas, currentEmployee, onPrint
     setMode("lista");
     setPayMethod("Dinheiro");
     setBuscaTicket("");
-    onPrint({ type: "comprovante", comanda: comandaFechada, timestamp: closedAt });
   };
 
   const cancelarComanda = (id) => {
@@ -531,6 +529,8 @@ function ComandasTab({ produtos, comandas, setComandas, currentEmployee, onPrint
           ))}
         </div>
         <div className="flex gap-2 mt-4">
+          <button onClick={() => onPrint({ type: "comprovante", comanda: { ...comanda, total, paymentMethod: payMethod }, timestamp: new Date().toISOString() })}
+            className="py-2 px-3 rounded text-sm" style={{ background: "#3A2A1F", color: "#C9B79C" }} title="Imprimir comprovante">🖨 Imprimir</button>
           <button onClick={() => setMode("lista")} className="flex-1 py-2 rounded text-sm" style={{ background: "#3A2A1F", color: "#C9B79C" }}>Voltar</button>
           <button onClick={confirmarPagamento} className="flex-1 py-2 rounded-lg font-semibold pdv-serif" style={{ background: "#7C8A5C", color: "#1D2314" }}>
             Confirmar Pagamento
@@ -573,9 +573,20 @@ function ComandasTab({ produtos, comandas, setComandas, currentEmployee, onPrint
                 <button onClick={() => cancelarComanda(c.id)} title="Cancelar comanda"><Trash2 size={14} color="#C1553D" /></button>
               </div>
               <div className="text-xs mt-2 flex items-center gap-1" style={{ color: "#8A7863" }}>
-                <Clock size={11} /> há {mins} min · {c.items.reduce((s, it) => s + it.qty, 0)} itens
+                <Clock size={11} /> há {mins} min
               </div>
-              <div className="pdv-mono text-lg mt-1" style={{ color: "#F2E9DA" }}>{fmtBRL(total)}</div>
+              <div className="space-y-0.5 mt-2 pb-2 border-b" style={{ borderColor: "#4A3B2A" }}>
+                {c.items.map((it, i) => (
+                  <div key={i} className="flex justify-between text-xs" style={{ color: "#C9B79C" }}>
+                    <span>{it.qty}x {it.name}</span>
+                    <span className="pdv-mono">{fmtBRL(it.price * it.qty)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between items-center pdv-mono text-lg mt-2" style={{ color: "#F2E9DA" }}>
+                <span className="text-xs pdv-serif" style={{ color: "#8A7863" }}>Total</span>
+                <span>{fmtBRL(total)}</span>
+              </div>
               <div className="flex gap-2 mt-3">
                 <button onClick={() => startEditar(c)} className="flex-1 py-1.5 rounded text-xs" style={{ background: "#3A2A1F", color: "#C9B79C" }}>+ Itens</button>
                 <button onClick={() => onPrint({ type: "ticket", comanda: c, timestamp: c.openedAt })} className="py-1.5 px-2 rounded text-xs" style={{ background: "#3A2A1F", color: "#C9B79C" }} title="Reimprimir senha">🖨</button>
