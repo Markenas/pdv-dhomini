@@ -857,6 +857,7 @@ function ReceiptPrint({ data }) {
     </div>
   );
 }
+function Field({ label, value, onChange, numeric }) {
   return (
     <label className="text-xs" style={{ color: "#C9B79C" }}>
       {label}
